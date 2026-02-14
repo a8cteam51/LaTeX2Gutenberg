@@ -1,2 +1,2 @@
-# latex2gutenberg
-A port of LaTeX2WP to work with Gutenberg
+# LaTeX2Gutenberg
+A port of [LaTeX2WP](https://sourceforge.net/projects/latex2wp/) to work with Gutenberg.
