@@ -1,6 +1,6 @@
 # LaTeX2Gutenberg
 
-A port of [LaTeX2WP](https://sourceforge.net/projects/latex2wp/) that outputs Gutenberg block markup for the WordPress block editor.
+A fork of [LaTeX2WP](https://sourceforge.net/projects/latex2wp/) that outputs Gutenberg block markup for the WordPress block editor.
 
 ## Getting Started
 
