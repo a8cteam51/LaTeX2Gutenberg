@@ -2,6 +2,8 @@
 
 A fork of [LaTeX2WP](https://sourceforge.net/projects/latex2wp/) that outputs Gutenberg block markup for the WordPress block editor.
 
+Note: This is still a work in progress and needs lots of testing. Feedback encouraged! Open an issue.
+
 ## Getting Started
 
 Place `latex2wp.py`, `latex2wpstyle.py`, `macrosblog.tex`, and your `.tex` file in the same directory. Use `post-template.tex` as a starting point, writing your text between `\begin{document}` and `\end{document}`.
