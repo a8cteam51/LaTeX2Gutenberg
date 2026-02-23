@@ -81,6 +81,21 @@ Z & \rTo_{\delta} & W
 \end{diagram}
 \]
 
+\section{Inline Math MathML Fixes}
+
+% \mathbb letters in inline math should use literal Unicode double-struck
+% characters (e.g.\ U+2124 for Z) rather than mathvariant="double-struck",
+% which is unreliable across browsers.
+
+Inline: $n \in \mathbb{Z}$, $x \in \mathbb{R}$, $z \in \mathbb{C}$,
+$p \in \mathbb{N}$, $q \in \mathbb{Q}$.
+
+% \hbox{ mod } should not produce 1em gaps around "mod".  The spaces
+% inside \hbox are converted by latex2mathml to &nbsp;; we strip them
+% so the spacing matches surrounding math operators (~0.33em).
+
+Spacing: $a_i \hbox{ mod } q_i$ should have normal word spacing around ``mod''.
+
 \section{Tikzcd Commutative Diagrams}
 
 % The {tikzcd} environment should be converted to a
