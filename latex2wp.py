@@ -22,6 +22,7 @@
 import re
 import json
 from sys import argv
+import latex2mathml.converter
 
 from latex2wpstyle import *
 
@@ -62,7 +63,7 @@ M = M + [ ["\\it ","\\em "],
           ["\\`o","&ograve;"],
           ["\\'o","&oacute;"],
           ["\\\"o","&ouml;"],
-          ["\\H o","&ouml;"],
+          ["\\H o","ő"],
           ["\\`u","&ugrave;"],
           ["\\'u","&uacute;"],
           ["\\\"u","&uuml;"],
@@ -236,7 +237,7 @@ def processmath( M ) :
                 m=m.replace("'","&#39;")
                 m="<img src='http://l.wordpress.com/latex.php?latex=%7B"+m+"%7D"+endlatex+"'>"
             else :
-                m="$latex {"+mb[1]+"}"+endlatex+"$"
+                m=_make_inline_math("{"+mb[1]+"}")
 
         else :
             if md[0].find("\\begin") != -1 :
@@ -484,6 +485,75 @@ def processtext ( t ) :
         return(w)
     
 
+def _make_inline_math(latex) :
+    """Create an inline <math> element from raw LaTeX with MathML."""
+    escaped = latex.replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
+    data_attr = latex.replace("&","&amp;").replace('"',"&quot;").replace("<","&lt;").replace(">","&gt;")
+    # Generate MathML body from LaTeX
+    try :
+        mathml = latex2mathml.converter.convert(latex)
+        # Extract inner content between <math ...> and </math>
+        inner = re.sub(r'^<math[^>]*>', '', mathml)
+        inner = re.sub(r'</math>$', '', inner)
+    except :
+        inner = "<mrow></mrow>"
+    return ("<math data-latex=\"" + data_attr + "\"><semantics>"
+            + inner
+            + "<annotation encoding=\"application/x-tex\">" + escaped + "</annotation>"
+            "</semantics></math>")
+
+def _split_display_math(latex, threshold=100) :
+    """Split a long display math formula into two lines at a relation operator.
+    Returns a list of one or two LaTeX strings.  The second line starts with
+    the relation operator, mirroring how Terry Tao's blog formats wide formulas
+    as consecutive centered blocks."""
+    if len(latex) < threshold :
+        return [latex]
+
+    # Relation operators to break at (longest first to avoid partial matches)
+    relations = ['\\leqslant', '\\geqslant', '\\leq', '\\geq',
+                 '\\le', '\\ge', '\\neq', '\\sim', '=', '<', '>']
+
+    # Find all relation operators at brace depth 0
+    breakpoints = []
+    depth = 0
+    i = 0
+    while i < len(latex) :
+        if latex[i] == '{' :
+            depth += 1
+            i += 1
+        elif latex[i] == '}' :
+            depth -= 1
+            i += 1
+        elif depth == 0 :
+            matched = False
+            for rel in relations :
+                if latex[i:i+len(rel)] == rel :
+                    # For single-char operators, skip if preceded by backslash
+                    if len(rel) == 1 and i > 0 and latex[i-1] == '\\' :
+                        break
+                    breakpoints.append((i, rel))
+                    i += len(rel)
+                    matched = True
+                    break
+            if not matched :
+                i += 1
+        else :
+            i += 1
+
+    if not breakpoints :
+        return [latex]
+
+    # Choose the breakpoint closest to the middle
+    mid = len(latex) / 2
+    best = min(breakpoints, key=lambda bp: abs(bp[0] - mid))
+
+    pos, rel = best
+    first = latex[:pos].strip()
+    second = (rel + latex[pos+len(rel):]).strip()
+
+    return [first, second]
+
 def _make_math_block(latex) :
     """Create a wp:math Gutenberg block from raw LaTeX."""
     block_attrs = json.dumps({"latex": latex})
@@ -512,7 +582,8 @@ def _wrap_segments(text) :
             if not dp_stripped :
                 continue
             if j % 2 == 1 :
-                out.append(_make_math_block(dp_stripped))
+                for piece in _split_display_math(dp_stripped) :
+                    out.append(_make_math_block(piece))
             else :
                 # Skip segments that are only closing tags with no real content
                 text_only = tag_re.sub('', dp_stripped).strip()
@@ -545,7 +616,6 @@ def gutenbergify(s) :
         content = match.group(1)
         inner = _wrap_segments(content)
         idx = len(quote_blocks)
-        # Use a Gutenberg-style placeholder so block_re recognizes it
         placeholder = "<!-- wp:__qp_" + str(idx) + "__ --><!-- /wp:__qp_" + str(idx) + "__ -->"
         quote_blocks.append(
             "<!-- wp:quote -->\n<blockquote class=\"wp-block-quote\">"

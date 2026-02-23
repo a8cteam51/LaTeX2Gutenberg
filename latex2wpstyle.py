@@ -59,7 +59,7 @@ endthm = "</em>__QUOTE_END__\n"
 
 
 beginproof = "<em>Proof:</em> "
-endproof = "$latex \Box&fg=000000$\n\n"
+endproof = "<math data-latex=\"\\Box\"><semantics><mrow></mrow><annotation encoding=\"application/x-tex\">\\Box</annotation></semantics></math>\n\n"
 
 section = "\n<!-- wp:heading {\"level\":2} -->\n<h2>_SecNumb_. _SecName_</h2>\n<!-- /wp:heading -->\n"
 sectionstar = "\n<!-- wp:heading {\"level\":2} -->\n<h2>_SecName_</h2>\n<!-- /wp:heading -->\n"
