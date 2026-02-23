@@ -63,6 +63,7 @@ M = M + [ ["\\it ","\\em "],
           ["\\`o","&ograve;"],
           ["\\'o","&oacute;"],
           ["\\\"o","&ouml;"],
+          ["\\H{o}","ő"],
           ["\\H o","ő"],
           ["\\`u","&ugrave;"],
           ["\\'u","&uacute;"],
@@ -129,15 +130,20 @@ def converttables(m) :
         
 
     retable = re.compile("\\\\begin\s*\\{tabular}.*?\\\\end\s*\\{tabular}"
-                         "|\\\\begin\s*\\{btabular}.*?\\\\end\s*\\{btabular}")
+                         "|\\\\begin\s*\\{btabular}.*?\\\\end\s*\\{btabular}"
+                         "|\\\\\\[\\s*\\\\begin\s*\\{diagram}.*?\\\\end\s*\\{diagram}\\s*\\\\\\]"
+                         "|\\\\begin\s*\\{diagram}.*?\\\\end\s*\\{diagram}"
+                         "|\\\\\\[\\s*\\\\begin\s*\\{tikzcd}.*?\\\\end\s*\\{tikzcd}\\s*\\\\\\]"
+                         "|\\\\begin\s*\\{tikzcd}.*?\\\\end\s*\\{tikzcd}")
     tables = retable.findall(m)
     rest = retable.split(m)
 
-
     m = rest[0]
     for i in range(len(tables)) :
-        if tables[i].find("{btabular}") != -1 :
-            m = m + convertonetable(tables[i],True)
+        if tables[i].find("{tikzcd}") != -1 :
+            m = m + convertonetikzcd(tables[i])
+        elif tables[i].find("{diagram}") != -1 :
+            m = m + convertonediagram(tables[i])
         else :
             m = m + convertonetable(tables[i],False)
         m = m + rest[i+1]
@@ -155,43 +161,172 @@ def convertmacros(m) :
 
 
 def convertonetable(m,border) :
+    # Convert tabular to a display math \begin{array} block.
+    # Extract the column format (e.g. "ccc") from \begin{tabular}{ccc}
+    header_re = re.compile(r"\\begin\{[bt]?tabular}\s*\{([^}]*)\}")
+    hm = header_re.search(m)
+    fmt = hm.group(1) if hm else "c"
 
-    tokens = re.compile("\\\\begin\\{tabular}\s*\\{.*?}"
-                        "|\\\\end\\{tabular}"
-                        "|\\\\begin\\{btabular}\s*\\{.*?}"
-                        "|\\\\end\\{btabular}"
-                        "|&|\\\\\\\\")
+    # Strip \begin{tabular}{...} and \end{tabular}/\end{btabular}
+    body = header_re.sub("", m)
+    body = re.sub(r"\\end\{[bt]?tabular}", "", body).strip()
 
-    align = { "c" : "center", "l" : "left" , "r" : "right" }
+    # Strip $...$ wrappers from individual cells since the whole
+    # thing will be inside a math environment
+    body = re.sub(r"\$([^$]*)\$", r" \1 ", body)
 
-    T = tokens.findall(m)
-    C = tokens.split(m)
+    # Emit as \[...\] so separatemath() extracts it and processtext()
+    # does not mangle the backslashes inside.
+    return "\\[\\begin{array}{" + fmt + "} " + body + " \\end{array}\\]"
 
+def convertonediagram(m) :
+    # Convert a {diagram} environment (Paul Taylor's diagrams package)
+    # to a display math \begin{array} block.
+    # Strip outer \[...\] if present, and \begin{diagram}...\end{diagram}
+    body = re.sub(r"^\\\[", "", m)
+    body = re.sub(r"\\\]$", "", body)
+    body = re.sub(r"\\begin\{diagram}", "", body)
+    body = re.sub(r"\\end\{diagram}", "", body).strip()
 
-    L = cb.split(T[0])
-    format = L[3]
+    # Map diagram arrow commands to standard LaTeX arrows
+    arrow_map = [
+        ("\\rTo", "\\rightarrow"),
+        ("\\lTo", "\\leftarrow"),
+        ("\\dTo", "\\downarrow"),
+        ("\\uTo", "\\uparrow"),
+        ("\\rdTo", "\\searrow"),
+        ("\\ruTo", "\\nearrow"),
+        ("\\ldTo", "\\swarrow"),
+        ("\\luTo", "\\nwarrow"),
+        ("\\rDashto", "\\dashrightarrow"),
+        ("\\lDashto", "\\dashleftarrow"),
+        ("\\rInto", "\\hookrightarrow"),
+        ("\\rOnto", "\\twoheadrightarrow"),
+    ]
+    for src, dst in arrow_map :
+        body = body.replace(src, dst)
 
-    columns = len(format)
-    if border :
-        m = "<!-- wp:table -->\n<figure class=\"wp-block-table\"><table><tbody><tr>"
-    else :
-        m="<!-- wp:table -->\n<figure class=\"wp-block-table\"><table><tbody><tr>"
-    p=1
-    i=0
+    # Count columns from the first row (count & separators + 1)
+    first_row = body.split("\\\\")[0]
+    ncols = first_row.count("&") + 1
+    fmt = "c" * ncols
 
-    
-    while T[p-1] != "\\end{tabular}" and T[p-1] != "\\end{btabular}":
-        m = m + "<td align="+align[format[i]]+">" + C[p] + "</td>"
-        p=p+1
-        i=i+1
-        if T[p-1]=="\\\\" :
-            for i in range (p,columns) :
-                m=m+"<td></td>"
-            m=m+"</tr><tr>"
-            i=0
-    m = m+ "</tr></tbody></table></figure>\n<!-- /wp:table -->"
-    return (m)
- 
+    return "\\[\\begin{array}{" + fmt + "} " + body + " \\end{array}\\]"
+
+def convertonetikzcd(m) :
+    # Convert a {tikzcd} environment to a display math \begin{array} block.
+    # Strip outer \[...\] if present, and \begin{tikzcd}...\end{tikzcd}
+    body = re.sub(r"^\\\[", "", m)
+    body = re.sub(r"\\\]$", "", body)
+    body = re.sub(r"\\begin\{tikzcd}(\[.*?\])?", "", body)
+    body = re.sub(r"\\end\{tikzcd}", "", body).strip()
+
+    # Parse rows (split on \\) and cells (split on &)
+    rows = [r.strip() for r in re.split(r"\\\\", body) if r.strip()]
+    nrows = len(rows)
+    ncols = 1
+    grid_cells = []
+    for row in rows :
+        cells = [c.strip() for c in row.split("&")]
+        ncols = max(ncols, len(cells))
+        grid_cells.append(cells)
+
+    # Parse each cell: extract node text and \arrow[...] commands
+    arrow_re = re.compile(r"\\arrow\s*\[([^\]]*)\]")
+    parsed = []  # list of rows, each row is list of (node_text, [(dirs, label, swap)])
+    for row in grid_cells :
+        parsed_row = []
+        for cell in row :
+            arrows = []
+            node = arrow_re.sub("", cell).strip()
+            for am in arrow_re.finditer(cell) :
+                args = am.group(1)
+                # Parse direction letters and label from the args
+                parts = [p.strip() for p in args.split(",")]
+                dirs = ""
+                label = ""
+                swap = False
+                for part in parts :
+                    if part and all(ch in "rludRLUD" for ch in part) :
+                        dirs = part.lower()
+                    elif part.startswith('"') :
+                        # Label may look like: "f", "g"', "k"  (with optional trailing ')
+                        raw = part
+                        if raw.endswith("'") :
+                            swap = True
+                            raw = raw[:-1]
+                        # Strip surrounding quotes
+                        label = raw.strip('"')
+                    elif part == "'" :
+                        swap = True
+                arrows.append((dirs, label, swap))
+            parsed_row.append((node, arrows))
+        parsed.append(parsed_row)
+
+    # Build expanded grid: (2*nrows-1) x (2*ncols-1)
+    exp_rows = 2 * nrows - 1
+    exp_cols = 2 * ncols - 1
+    grid = [["" for _ in range(exp_cols)] for _ in range(exp_rows)]
+
+    # Direction -> (row_delta, col_delta)
+    dir_delta = {
+        "r": (0, 1), "l": (0, -1),
+        "d": (1, 0), "u": (-1, 0),
+        "dr": (1, 1), "dl": (1, -1),
+        "ur": (-1, 1), "ul": (-1, -1),
+        "rd": (1, 1), "ld": (1, -1),
+        "ru": (-1, 1), "lu": (-1, -1),
+    }
+
+    # Direction -> arrow symbol
+    dir_symbol = {
+        "r": "rightarrow", "l": "leftarrow",
+        "d": "downarrow", "u": "uparrow",
+        "dr": "searrow", "rd": "searrow",
+        "dl": "swarrow", "ld": "swarrow",
+        "ur": "nearrow", "ru": "nearrow",
+        "ul": "nwarrow", "lu": "nwarrow",
+    }
+
+    for r, parsed_row in enumerate(parsed) :
+        for c, (node, arrows) in enumerate(parsed_row) :
+            # Place node at even position
+            grid[2 * r][2 * c] = node
+
+            for dirs, label, swap in arrows :
+                if dirs not in dir_delta :
+                    continue
+                dr, dc = dir_delta[dirs]
+                exp_r = 2 * r + dr
+                exp_c = 2 * c + dc
+
+                if exp_r < 0 or exp_r >= exp_rows or exp_c < 0 or exp_c >= exp_cols :
+                    continue
+
+                if dirs in ("r", "l") :
+                    # Horizontal: use \xrightarrow / \xleftarrow
+                    if dirs == "r" :
+                        grid[exp_r][exp_c] = "\\xrightarrow{" + label + "}"
+                    else :
+                        grid[exp_r][exp_c] = "\\xleftarrow{" + label + "}"
+                else :
+                    sym = "\\" + dir_symbol[dirs]
+                    if label :
+                        if swap :
+                            sym = sym + "_{" + label + "}"
+                        else :
+                            sym = sym + "^{" + label + "}"
+                    grid[exp_r][exp_c] = sym
+
+    # Emit as \begin{array}
+    fmt = "c" * exp_cols
+    row_strs = []
+    for row in grid :
+        row_strs.append(" & ".join(row))
+    array_body = " \\\\ ".join(row_strs)
+
+    return "\\[\\begin{array}{" + fmt + "} " + array_body + " \\end{array}\\]"
+
 
 
 

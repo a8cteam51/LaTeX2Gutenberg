@@ -1,0 +1,131 @@
+% test_features.tex
+%
+% Regression tests for LaTeX2Gutenberg.  Run with:
+%     python latex2wp.py test_features.tex
+% then inspect test_features.html for correct output.
+
+\begin{document}
+
+\section{Accented Characters}
+
+% The Hungarian double acute accent \H should produce ő (U+0151),
+% not ö (umlaut).  Both the spaced form (\H o) and the braced
+% form (\H{o}) should work.
+
+Erd\H{o}s and Erd\H os were prolific mathematicians.
+
+\section{Display Math Line Breaking}
+
+% Long display math formulas (over 100 characters) should be
+% automatically split into two consecutive math blocks at a
+% relation operator.  The second block starts with the operator
+% (e.g.\ \leq, \geq), matching the style on Terry Tao's blog.
+
+Short formula (should stay on one line):
+$$\prod_{i=1}^k \left(1 - \frac{1}{q_i}\right).$$
+
+Long formula with \verb|\leq| (should split into two blocks):
+$$|\{ n \in \Z/Q\Z: n \neq a_i \hbox{ mod } q_i \hbox{ for all } i=1,\ldots,k \}| \leq |\{ n \in \Z/Q\Z: n \neq 0 \hbox{ mod } q_i \hbox{ for all } i=1,\ldots,k \}|.$$
+
+Long formula with \verb|\geq| (should split into two blocks):
+$$ |\bigcup_{j=1}^k (a_{j,1} + H_{j,1}) \times (a_{j,2} + H_{j,2})| \geq |\bigcup_{j=1}^k (a_{j,1} + H_{j,1}) \times H_{j,2}|$$
+
+\section{Tabular as Math Array}
+
+% Tabular environments are converted to display math
+% \begin{array} blocks rather than HTML tables.
+
+A text-style table:
+
+\begin{tabular}{lr}
+blog & quality\\
+what's new & excellent\\
+in theory & poor
+\end{tabular}
+
+A commutative diagram using tabular:
+
+\begin{tabular}{ccc}
+$a$ & $\rightarrow$ & $b$\\
+$\downarrow$  & & $\uparrow$\\
+$c$ & $\rightarrow$ & $d$
+\end{tabular}
+
+\section{Diagram Environment}
+
+% The {diagram} environment (Paul Taylor's diagrams package)
+% should convert to a \begin{array} math block.  Arrow commands
+% are mapped to standard LaTeX:
+%   \rTo -> \rightarrow    \lTo -> \leftarrow
+%   \dTo -> \downarrow     \uTo -> \uparrow
+%   \rdTo -> \searrow      \ruTo -> \nearrow
+%   \ldTo -> \swarrow      \luTo -> \nwarrow
+% Superscript/subscript labels (e.g.\ \rTo^{f}) are preserved.
+
+Bare diagram environment:
+
+\begin{diagram}
+A & \rTo^{f} & B \\
+\dTo^{g} &     & \dTo_{h} \\
+C & \rTo_{k} & D
+\end{diagram}
+
+Diagram wrapped in display math delimiters (should not produce
+a stray \verb|\]| in the output):
+
+\[
+\begin{diagram}
+X & \rTo^{\alpha} & Y \\
+\dTo^{\beta} &     & \dTo_{\gamma} \\
+Z & \rTo_{\delta} & W
+\end{diagram}
+\]
+
+\section{Tikzcd Commutative Diagrams}
+
+% The {tikzcd} environment should be converted to a
+% \begin{array} math block by expanding the node grid
+% and placing arrow symbols between nodes.
+
+Commutative square with tikzcd:
+
+\begin{tikzcd}
+A \arrow[r, "f"] \arrow[d, "g"'] & B \arrow[d, "h"] \\
+C \arrow[r, "k"'] & D
+\end{tikzcd}
+
+Diagonal arrow example:
+
+\begin{tikzcd}
+A \arrow[r, "f"] \arrow[dr, "\phi"'] & B \arrow[d, "g"] \\
+ & C
+\end{tikzcd}
+
+Tikzcd wrapped in display math delimiters:
+
+\[
+\begin{tikzcd}
+X \arrow[r, "\alpha"] \arrow[d, "\beta"'] & Y \arrow[d, "\gamma"] \\
+Z \arrow[r, "\delta"'] & W
+\end{tikzcd}
+\]
+
+\section{Theorem Environments}
+
+% Theorems should render inside wp:quote / blockquote.
+% Labels and cross-references should work.
+
+\begin{theorem}\label{thtest}
+Every compact subset of $\R^n$ is closed and bounded.
+\end{theorem}
+
+\begin{lemma}[Zorn]
+If every chain in a partially ordered set has an upper bound,
+then the set has a maximal element.
+\end{lemma}
+
+\begin{proof}
+Left as an exercise.  See Theorem \ref{thtest}.
+\end{proof}
+
+\end{document}
